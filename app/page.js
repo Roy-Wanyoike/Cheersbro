@@ -1,5 +1,5 @@
 import './globals.css';
-import SupportApp from '../components/SupportApp';
+import SupportApp from '@/components/SupportApp';
 
 export const metadata = {
   title: 'Cheersbro – Support & Payments',
