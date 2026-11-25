@@ -1,3 +1,4 @@
+import { creditBalance, addTransaction, getUser } from '../../../../lib/db';
 import crypto from 'crypto';
 
 const CONFIG = {
@@ -33,7 +34,6 @@ function verifySignature(payload, signatureHeader, secret) {
   return signatures.length > 0 ? signatures.includes(expected) : payload.sign?.toLowerCase() === expected;
 }
 
-// In-memory store (use Redis/DB in production)
 const processed = new Map();
 
 export async function POST(req) {
@@ -51,17 +51,38 @@ export async function POST(req) {
       return new Response('Invalid signature', { status: 400 });
     }
 
-    // Idempotency
     if (processed.has(transactionId)) {
-      console.log(`[Idempotent] ${transactionId}`);
       return new Response(transactionId, { status: 200, headers: { 'Content-Type': 'text/plain' } });
     }
 
-    // Process payment
-    console.log(`[Webhook] ${transactionId} status=${payload.status} amount=${payload.orderAmount}`);
-    // TODO: credit user, update order, send email, etc.
+    // Extract email from billing info if present
+    let email = null;
+    try {
+      const billing = typeof payload.billingInformation === 'string'
+        ? JSON.parse(payload.billingInformation)
+        : payload.billingInformation;
+      email = billing?.email;
+    } catch {}
 
-    processed.set(transactionId, { status: payload.status, at: new Date().toISOString() });
+    const amount = parseFloat(payload.orderAmount) || 0;
+    const status = payload.status; // S = success
+
+    if (email && status === 'S' && amount > 0) {
+      const newBalance = creditBalance(email, amount);
+      addTransaction({
+        email,
+        type: 'deposit',
+        amount,
+        currency: payload.orderCurrency || 'USD',
+        transactionId,
+        status: 'success',
+      });
+      console.log(`[Webhook] Credited ${email} +${amount}, balance=${newBalance}`);
+    } else {
+      console.log(`[Webhook] ${transactionId} status=${status} (no credit)`);
+    }
+
+    processed.set(transactionId, { status, at: new Date().toISOString() });
 
     return new Response(transactionId, { status: 200, headers: { 'Content-Type': 'text/plain' } });
   } catch (err) {
