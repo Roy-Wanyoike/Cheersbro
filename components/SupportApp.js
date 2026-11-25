@@ -49,12 +49,44 @@ export default function SupportApp() {
   const [loggedInEmail, setLoggedInEmail] = useState(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('cheersbro_email');
-    if (saved) {
-      setEmail(saved);
-      setLoggedInEmail(saved);
+    const savedEmail = localStorage.getItem('cheersbro_email');
+    const refresh = localStorage.getItem('cheersbro_refresh');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setLoggedInEmail(savedEmail);
+    }
+    // Try silent refresh on load
+    if (refresh) {
+      fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.access) {
+            localStorage.setItem('cheersbro_access', data.access);
+            localStorage.setItem('cheersbro_refresh', data.refresh);
+            localStorage.setItem('cheersbro_email', data.email);
+            setEmail(data.email);
+            setLoggedInEmail(data.email);
+          } else {
+            localStorage.removeItem('cheersbro_refresh');
+            localStorage.removeItem('cheersbro_access');
+          }
+        })
+        .catch(() => {});
     }
   }, []);
+
+  const logout = () => {
+    localStorage.removeItem('cheersbro_access');
+    localStorage.removeItem('cheersbro_refresh');
+    localStorage.removeItem('cheersbro_email');
+    setLoggedInEmail(null);
+    setEmail('');
+    showStatus('Signed out', 'success');
+  };
 
   const requestMagicLink = async () => {
     if (!email.includes('@')) return showStatus('Enter a valid email', 'error');
@@ -68,14 +100,6 @@ export default function SupportApp() {
     } catch {
       showStatus('Failed to send link', 'error');
     }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('cheersbro_session');
-    localStorage.removeItem('cheersbro_email');
-    setLoggedInEmail(null);
-    setEmail('');
-    showStatus('Signed out', 'success');
   };
 
   useEffect(() => {
