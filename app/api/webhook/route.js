@@ -1,62 +1,50 @@
 import { creditBalance, addTransaction, getPreferredPayout } from '../../../../lib/db';
 import { sendToWallet } from '../../../../lib/payout';
-import crypto from 'crypto';
+import { verifyWebhook } from '../../../../lib/webhook';
 
 const CONFIG = {
-  secret: process.env.ONERWAY_SECRET || 'YOUR_SECRET_KEY',
+  secret: process.env.ONERWAY_SECRET || '',
 };
 
-const WEBHOOK_EXCLUDED = new Set([
-  'originTransactionId', 'originMerchantTxnId', 'customsDeclarationAmount',
-  'customsDeclarationCurrency', 'paymentMethod', 'walletTypeName',
-  'periodValue', 'tokenExpireTime', 'sign'
-]);
-
-function verifySignature(payload, signatureHeader, secret) {
-  const signatures = [];
-  if (signatureHeader) {
-    signatureHeader.split(',').forEach(part => {
-      const match = part.trim().match(/^v1=([a-f0-9]+)$/i);
-      if (match) signatures.push(match[1].toLowerCase());
-    });
-  }
-
-  const normalized = {};
-  for (const [k, v] of Object.entries(payload)) {
-    if (!WEBHOOK_EXCLUDED.has(k) && v != null && v !== '') {
-      normalized[k] = typeof v === 'object' ? JSON.stringify(v) : String(v);
-    }
-  }
-
-  const keys = Object.keys(normalized).sort();
-  const canonical = keys.map(k => normalized[k]).join('');
-  const expected = crypto.createHash('sha256').update(canonical + secret, 'utf8').digest('hex');
-
-  return signatures.length > 0 ? signatures.includes(expected) : payload.sign?.toLowerCase() === expected;
-}
-
+// Idempotency store (use Redis/DB in production)
 const processed = new Map();
 
 export async function POST(req) {
   try {
     const rawBody = await req.text();
-    const payload = JSON.parse(rawBody);
-    const transactionId = payload.transactionId;
+    let payload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return new Response('Invalid JSON', { status: 400 });
+    }
 
+    const transactionId = payload.transactionId;
     if (!transactionId) {
       return new Response('Missing transactionId', { status: 400 });
     }
 
-    const signatureHeader = req.headers.get('x-rh-signature') || req.headers.get('x-signature');
-    if (!verifySignature(payload, signatureHeader, CONFIG.secret)) {
+    // Prefer x-signature, fall back to X-Rh-Signature
+    const signatureHeader =
+      req.headers.get('x-signature') ||
+      req.headers.get('x-rh-signature');
+
+    const verification = verifyWebhook(payload, signatureHeader, CONFIG.secret);
+    if (!verification.ok) {
+      console.warn(`[Webhook] Rejected ${transactionId}: ${verification.reason}`);
       return new Response('Invalid signature', { status: 400 });
     }
 
+    // Idempotency
     if (processed.has(transactionId)) {
-      return new Response(transactionId, { status: 200, headers: { 'Content-Type': 'text/plain' } });
+      console.log(`[Webhook] Idempotent replay ${transactionId}`);
+      return new Response(transactionId, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      });
     }
 
-    // Extract email from billing info if present
+    // Extract email
     let email = null;
     try {
       const billing = typeof payload.billingInformation === 'string'
@@ -66,10 +54,9 @@ export async function POST(req) {
     } catch {}
 
     const amount = parseFloat(payload.orderAmount) || 0;
-    const status = payload.status; // S = success
+    const status = payload.status;
 
     if (email && status === 'S' && amount > 0) {
-      // Credit internal balance
       const newBalance = creditBalance(email, amount);
       addTransaction({
         email,
@@ -80,7 +67,6 @@ export async function POST(req) {
         status: 'success',
       });
 
-      // Direct-to-wallet: if creator has a connected payout method, send funds immediately
       const preferred = getPreferredPayout(email);
       if (preferred) {
         const payoutResult = await sendToWallet({
@@ -103,16 +89,20 @@ export async function POST(req) {
         });
       }
 
-      console.log(`[Webhook] Credited ${email} +${amount}, balance=${newBalance}`);
+      console.log(`[Webhook] Verified & credited ${email} +${amount}`);
     } else {
-      console.log(`[Webhook] ${transactionId} status=${status} (no credit)`);
+      console.log(`[Webhook] Verified ${transactionId} status=${status} (no credit)`);
     }
 
     processed.set(transactionId, { status, at: new Date().toISOString() });
 
-    return new Response(transactionId, { status: 200, headers: { 'Content-Type': 'text/plain' } });
+    // Acknowledge with plain-text transactionId
+    return new Response(transactionId, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    });
   } catch (err) {
-    console.error('Webhook error:', err);
+    console.error('[Webhook] Error:', err);
     return new Response('Bad Request', { status: 400 });
   }
 }
