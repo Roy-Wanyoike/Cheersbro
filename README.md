@@ -1,46 +1,48 @@
 # Cheersbro
 
-Deposit & withdraw site with Onerway Checkout.
+Multi-currency payment platform: Onerway collects, Cheersbro ledger splits fees, Flutterwave disburses.
 
 ## Features
-- Multi-step flow (Amount → Details → Confirm)
+- Multi-step deposit / withdraw flow
 - Multi-currency (USD, EUR, GBP, KES)
+- Magic-link auth + JWT refresh rotation
+- Service fee split (configurable %)
+- Double-entry ledger
+- Settlement wallet (available / pending / reserved)
+- Direct payout via Flutterwave (bank / M-Pesa)
+- Shareable payment links + QR
+- Admin revenue & settlement views
 - Dark mode
-- Live balance & recent activity
-- Payout method connection (Bank, M-Pesa, PayPal, Crypto)
-- QR code sharing
-- Real Onerway redirect via `/api/create-checkout`
-- Webhook handler with signature verification
-- Return/status page
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env.local
-# edit .env.local with your Onerway credentials
+# fill Onerway + Flutterwave keys
 npm run dev
 ```
 
-## Environment variables
+## Environment
 
-See `.env.example`.
+See `.env.example`. Key vars:
+
+| Var | Purpose |
+|-----|---------|
+| `ONERWAY_*` | Collection gateway |
+| `FLUTTERWAVE_*` | Disbursement gateway |
+| `CHEERSBRO_FEE_PERCENT` | Service fee (default 2) |
+| `JWT_SECRET` | Access token signing |
+| `NEXT_PUBLIC_BASE_URL` | Magic links & callbacks |
+
+## Flow
+
+1. Customer pays via Onerway
+2. Webhook verifies signature, posts ledger, splits fee
+3. Net amount reserved from settlement wallet
+4. Flutterwave sends to recipient's bank / M-Pesa
+5. Callback updates status
 
 ## Deploy
 
-The included GitHub Action deploys to Vercel on push to `main`.
-
-Required secrets:
-- `ONERWAY_MERCHANT_NO`
-- `ONERWAY_APP_ID`
-- `ONERWAY_SECRET`
-- `ONERWAY_ENV`
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
-
-## API routes
-
-- `POST /api/create-checkout` — creates Onerway session, returns `redirectUrl`
-- `POST /api/webhook` — receives Onerway payment notifications
-- `GET /return` — post-payment status page
+Vercel. Set env vars in the dashboard. Data is stored in `/tmp` on serverless (ephemeral — use a real DB for production).
