@@ -47,6 +47,7 @@ export default function SupportApp() {
   const [payoutData, setPayoutData] = useState({});
   const [shareLink, setShareLink] = useState('');
   const [loggedInEmail, setLoggedInEmail] = useState(null);
+  const [hideBalance, setHideBalance] = useState(false);
 
   useEffect(() => {
     const savedEmail = localStorage.getItem('cheersbro_email');
@@ -55,7 +56,6 @@ export default function SupportApp() {
       setEmail(savedEmail);
       setLoggedInEmail(savedEmail);
     }
-    // Try silent refresh on load
     if (refresh) {
       fetch('/api/auth/refresh', {
         method: 'POST',
@@ -153,7 +153,8 @@ export default function SupportApp() {
   };
 
   const goToStep = (n) => {
-    if (n === 2 && amount <= 0) return showStatus('Select an amount', 'error');
+    if (n === 2 && amount <= 0) return showStatus('Select a valid amount', 'error');
+    if (n === 2 && mode === 'withdraw' && amount > balance) return showStatus('Insufficient balance', 'error');
     if (n === 3 && !email.includes('@')) return showStatus('Valid email required', 'error');
     setStep(n);
   };
@@ -271,30 +272,38 @@ export default function SupportApp() {
     <div className="container">
       <header>
         <div className="header-top">
-          <h1>Cheersbro</h1>
-          <button className="theme-toggle" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
-            {theme === 'dark' ? '🌙' : '☀️'}
-          </button>
-        </div>
-        {loggedInEmail ? (
-          <div style={{ fontSize: 13, marginBottom: 8 }}>
-            Signed in as <strong>{loggedInEmail}</strong>
-            {' · '}
-            <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer', fontSize: 13 }}>Sign out</button>
+          <div className="logo">Cheersbro</div>
+          <div className="header-actions">
+            {loggedInEmail ? (
+              <span style={{ fontSize: 13 }}>{loggedInEmail.split('@')[0]}</span>
+            ) : (
+              <button onClick={requestMagicLink} className="icon-btn" title="Sign in">✉️</button>
+            )}
+            <button className="icon-btn" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}>
+              {theme === 'dark' ? '🌙' : '☀️'}
+            </button>
           </div>
-        ) : (
-          <button onClick={requestMagicLink} className="share-btn" style={{ marginBottom: 8 }}>✉️ Send magic link</button>
+        </div>
+
+        <div className="wallet-card">
+          <div className="wallet-label">Available Balance</div>
+          <div className="wallet-balance">
+            {hideBalance ? '••••••' : `${sym}${convertedBalance}`}
+          </div>
+          <div className="wallet-meta">
+            <span>{currency}</span>
+            <button className="hide-btn" onClick={() => setHideBalance(h => !h)}>
+              {hideBalance ? 'Show' : 'Hide'}
+            </button>
+          </div>
+        </div>
+        {loggedInEmail && (
+          <div style={{ fontSize: 12, textAlign: 'center' }}>
+            <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer' }}>Sign out</button>
+            {' · '}
+            <Link href="/orders" style={{ color: 'var(--orange)' }}>History</Link>
+          </div>
         )}
-        <div className="balance-card">
-          <span className="balance-label">Available Balance</span>
-          <span className="balance-value">{sym}{convertedBalance}</span>
-          <span className="balance-currency">{currency}</span>
-        </div>
-        <div className="social-proof">
-          <span className="proof-dot"></span>
-          <span>142 people supported this week</span>
-        </div>
-        <Link href="/orders" style={{ fontSize: 12, color: 'var(--orange)', marginTop: 8, display: 'inline-block' }}>View order history →</Link>
       </header>
 
       <div className="progress-steps">
@@ -304,8 +313,8 @@ export default function SupportApp() {
       </div>
 
       <div className="mode-toggle">
-        <button className={mode === 'deposit' ? 'active' : ''} onClick={() => { setMode('deposit'); setStep(1); }}>☕ Deposit</button>
-        <button className={mode === 'withdraw' ? 'active' : ''} onClick={() => { setMode('withdraw'); setStep(1); }}>💸 Withdraw</button>
+        <button className={mode === 'deposit' ? 'active' : ''} onClick={() => { setMode('deposit'); setStep(1); }}>Deposit</button>
+        <button className={mode === 'withdraw' ? 'active' : ''} onClick={() => { setMode('withdraw'); setStep(1); }}>Withdraw</button>
       </div>
 
       {step === 1 && (
@@ -363,12 +372,12 @@ export default function SupportApp() {
           <div className="form-group">
             <label>Country</label>
             <select value={country} onChange={e => setCountry(e.target.value)}>
-              <option value="US">🇺🇸 United States</option>
-              <option value="GB">🇬🇧 United Kingdom</option>
-              <option value="KE">🇰🇪 Kenya</option>
-              <option value="NG">🇳🇬 Nigeria</option>
-              <option value="ZA">🇿🇦 South Africa</option>
-              <option value="IN">🇮🇳 India</option>
+              <option value="US">United States</option>
+              <option value="GB">United Kingdom</option>
+              <option value="KE">Kenya</option>
+              <option value="NG">Nigeria</option>
+              <option value="ZA">South Africa</option>
+              <option value="IN">India</option>
             </select>
           </div>
           <div className="step-nav">
@@ -388,15 +397,14 @@ export default function SupportApp() {
             <div><span>Mode</span><span>{mode}</span></div>
           </div>
           <div className="trust-badges">
-            <div className="badge">🔒 Secure</div>
-            <div className="badge">⚡ Instant</div>
-            <div className="badge">💳 Card + Wallets</div>
+            <div className="badge">Secure</div>
+            <div className="badge">Instant</div>
+            <div className="badge">Card + Wallets</div>
           </div>
           <div className="step-nav">
             <button className="back-btn" onClick={() => setStep(2)}>← Back</button>
             <button className={`submit-btn ${loading ? 'loading' : ''}`} onClick={handleSubmit} disabled={loading}>
               <span className="btn-text">Continue to Payment</span>
-              <span className="btn-loader"></span>
             </button>
           </div>
         </section>
@@ -454,13 +462,18 @@ export default function SupportApp() {
       <section className="recent-section">
         <h2>Recent Activity</h2>
         <div className="transaction-list">
-          {transactions.slice(0, 4).map((t, i) => (
+          {transactions.slice(0, 5).map((t, i) => (
             <div key={i} className="tx-item">
-              <span>{t.type === 'deposit' ? '⬇️' : '⬆️'} {t.type}</span>
-              <span className={`tx-amount ${t.type === 'deposit' ? 'positive' : 'negative'}`}>
-                {t.type === 'deposit' ? '+' : '-'}{currencies[t.currency]?.symbol || '$'}{t.amount}
-              </span>
-              <span style={{ color: 'var(--muted)' }}>{t.date}</span>
+              <div className="tx-info">
+                <span className="tx-type">{t.type === 'deposit' ? 'Deposit' : t.type === 'payout' ? 'Payout' : 'Withdraw'}</span>
+                <span className="tx-meta">{t.date} · {t.transactionId || t.ref || '—'}</span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div className={`tx-amount ${t.type === 'deposit' ? 'positive' : 'negative'}`}>
+                  {t.type === 'deposit' ? '+' : '-'}{currencies[t.currency]?.symbol || '$'}{t.amount}
+                </div>
+                <span className="tx-status">{t.status || 'completed'}</span>
+              </div>
             </div>
           ))}
         </div>
