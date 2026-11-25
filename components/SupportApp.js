@@ -302,6 +302,8 @@ export default function SupportApp() {
             <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer' }}>Sign out</button>
             {' · '}
             <Link href="/orders" style={{ color: 'var(--orange)' }}>History</Link>
+            {' · '}
+            <Link href="/admin" style={{ color: 'var(--orange)' }}>Admin</Link>
           </div>
         )}
       </header>
@@ -392,6 +394,8 @@ export default function SupportApp() {
           <h2>Confirm</h2>
           <div className="confirm-summary">
             <div><span>Amount</span><span>{sym}{amount.toFixed(2)}</span></div>
+            <div><span>Service fee (2%)</span><span>{sym}{(amount * 0.02).toFixed(2)}</span></div>
+            <div><span>Recipient gets</span><span>{sym}{(amount * 0.98).toFixed(2)}</span></div>
             <div><span>Email</span><span>{email}</span></div>
             {message && <div><span>Message</span><span>{message}</span></div>}
             <div><span>Mode</span><span>{mode}</span></div>
@@ -404,7 +408,7 @@ export default function SupportApp() {
           <div className="step-nav">
             <button className="back-btn" onClick={() => setStep(2)}>← Back</button>
             <button className={`submit-btn ${loading ? 'loading' : ''}`} onClick={handleSubmit} disabled={loading}>
-              <span className="btn-text">Continue to Payment</span>
+              Continue to Payment
             </button>
           </div>
         </section>
@@ -425,22 +429,11 @@ export default function SupportApp() {
                     {preferredPayout === m ? (
                       <span style={{ fontSize: 11, color: 'var(--orange)', marginLeft: 8 }}>Preferred</span>
                     ) : (
-                      <button
-                        onClick={() => makePreferred(m)}
-                        style={{ marginLeft: 'auto', fontSize: 11, background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer' }}
-                      >
-                        Set preferred
-                      </button>
+                      <button onClick={() => makePreferred(m)} style={{ marginLeft: 'auto', fontSize: 11, background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer' }}>Set preferred</button>
                     )}
                   </>
                 ) : (
-                  <button
-                    onClick={() => openPayoutForm(m)}
-                    className="connect-status"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    Connect
-                  </button>
+                  <button onClick={() => openPayoutForm(m)} className="connect-status" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Connect</button>
                 )}
               </div>
             ))}
@@ -499,7 +492,6 @@ export default function SupportApp() {
             <button className="modal-close" onClick={() => setQrModal(false)}>&times;</button>
             <h3>Scan to support</h3>
             {qrDataUrl && <img src={qrDataUrl} alt="QR Code" width={180} height={180} />}
-            <p className="qr-url">{typeof window !== 'undefined' ? window.location.href : ''}</p>
           </div>
         </div>
       )}
