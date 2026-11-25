@@ -46,12 +46,42 @@ export default function SupportApp() {
   const [payoutForm, setPayoutForm] = useState(null);
   const [payoutData, setPayoutData] = useState({});
   const [shareLink, setShareLink] = useState('');
+  const [loggedInEmail, setLoggedInEmail] = useState(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('cheersbro_email');
+    if (saved) {
+      setEmail(saved);
+      setLoggedInEmail(saved);
+    }
+  }, []);
+
+  const requestMagicLink = async () => {
+    if (!email.includes('@')) return showStatus('Enter a valid email', 'error');
+    try {
+      await fetch('/api/auth/magic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      showStatus('Magic link sent! Check server logs (demo).', 'success');
+    } catch {
+      showStatus('Failed to send link', 'error');
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('cheersbro_session');
+    localStorage.removeItem('cheersbro_email');
+    setLoggedInEmail(null);
+    setEmail('');
+    showStatus('Signed out', 'success');
+  };
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Load payout methods for this user
   useEffect(() => {
     if (email && email.includes('@')) {
       fetch(`/api/payout-method?email=${encodeURIComponent(email)}`)
@@ -222,6 +252,15 @@ export default function SupportApp() {
             {theme === 'dark' ? '🌙' : '☀️'}
           </button>
         </div>
+        {loggedInEmail ? (
+          <div style={{ fontSize: 13, marginBottom: 8 }}>
+            Signed in as <strong>{loggedInEmail}</strong>
+            {' · '}
+            <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer', fontSize: 13 }}>Sign out</button>
+          </div>
+        ) : (
+          <button onClick={requestMagicLink} className="share-btn" style={{ marginBottom: 8 }}>✉️ Send magic link</button>
+        )}
         <div className="balance-card">
           <span className="balance-label">Available Balance</span>
           <span className="balance-value">{sym}{convertedBalance}</span>
