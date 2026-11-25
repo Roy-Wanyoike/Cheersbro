@@ -145,14 +145,22 @@ export default function SupportApp() {
     setPayoutData({});
   };
 
-  const connectPayout = () => {
+  const connectPayout = async () => {
     const fields = payoutFields[payoutForm] || [];
     for (const f of fields) {
       if (!payoutData[f.id]) return showStatus(f.label + ' required', 'error');
     }
+    // Save to backend so webhook can send funds directly
+    try {
+      await fetch('/api/payout-method', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, method: payoutForm, details: payoutData }),
+      });
+    } catch {}
     setConnectedPayouts({ ...connectedPayouts, [payoutForm]: payoutData });
     setPayoutForm(null);
-    showStatus(payoutForm + ' connected!', 'success');
+    showStatus(payoutForm + ' connected! Funds will go directly here.', 'success');
   };
 
   return (
@@ -282,8 +290,8 @@ export default function SupportApp() {
 
       {mode === 'withdraw' && (
         <section className="payout-section">
-          <h2>Connect Payout Method</h2>
-          <p className="payout-hint">Add a method to receive withdrawals</p>
+          <h2>Connect Payout Wallet</h2>
+          <p className="payout-hint">Payments go directly to your connected method (like Ko-fi)</p>
           <div className="payout-methods">
             {['bank', 'mpesa', 'paypal', 'crypto'].map(m => (
               <button key={m} className="payout-method" onClick={() => openPayoutForm(m)}>
