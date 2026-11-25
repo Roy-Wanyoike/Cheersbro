@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+import Link from 'next/link';
 
 const currencies = {
   USD: { symbol: '$', rate: 1 },
@@ -41,6 +42,7 @@ export default function SupportApp() {
   const [qrModal, setQrModal] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [connectedPayouts, setConnectedPayouts] = useState({});
+  const [preferredPayout, setPreferredPayout] = useState(null);
   const [payoutForm, setPayoutForm] = useState(null);
   const [payoutData, setPayoutData] = useState({});
   const [shareLink, setShareLink] = useState('');
@@ -49,7 +51,19 @@ export default function SupportApp() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Load balance when email changes
+  // Load payout methods for this user
+  useEffect(() => {
+    if (email && email.includes('@')) {
+      fetch(`/api/payout-method?email=${encodeURIComponent(email)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.methods) setConnectedPayouts(data.methods);
+          if (data.preferred) setPreferredPayout(data.preferred.method);
+        })
+        .catch(() => {});
+    }
+  }, [email]);
+
   useEffect(() => {
     if (email && email.includes('@')) {
       fetch(`/api/balance?email=${encodeURIComponent(email)}`)
@@ -144,7 +158,12 @@ export default function SupportApp() {
         const link = `${window.location.origin}/pay?ref=${data.ref}`;
         setShareLink(link);
         navigator.clipboard.writeText(link).catch(() => {});
-        showStatus('Payment link created and copied!', 'success');
+        fetch('/api/email-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, ref: data.ref, amount, currency, creatorName: firstName }),
+        }).catch(() => {});
+        showStatus('Payment link created, copied, and emailed!', 'success');
       }
     } catch {
       showStatus('Could not create link', 'error');
@@ -169,15 +188,29 @@ export default function SupportApp() {
       if (!payoutData[f.id]) return showStatus(f.label + ' required', 'error');
     }
     try {
-      await fetch('/api/payout-method', {
+      const res = await fetch('/api/payout-method', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, method: payoutForm, details: payoutData }),
+        body: JSON.stringify({ email, method: payoutForm, details: payoutData, setPreferred: true }),
       });
+      const data = await res.json();
+      if (data.methods) setConnectedPayouts(data.methods);
+      if (data.preferred) setPreferredPayout(data.preferred);
     } catch {}
-    setConnectedPayouts({ ...connectedPayouts, [payoutForm]: payoutData });
     setPayoutForm(null);
-    showStatus(payoutForm + ' connected! Funds will go directly here.', 'success');
+    showStatus(payoutForm + ' connected! Funds will go here.', 'success');
+  };
+
+  const makePreferred = async (method) => {
+    try {
+      await fetch('/api/payout-method', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, method }),
+      });
+      setPreferredPayout(method);
+      showStatus(method + ' set as preferred', 'success');
+    } catch {}
   };
 
   return (
@@ -198,6 +231,7 @@ export default function SupportApp() {
           <span className="proof-dot"></span>
           <span>142 people supported this week</span>
         </div>
+        <Link href="/orders" style={{ fontSize: 12, color: 'var(--orange)', marginTop: 8, display: 'inline-block' }}>View order history →</Link>
       </header>
 
       <div className="progress-steps">
@@ -308,14 +342,36 @@ export default function SupportApp() {
       {mode === 'withdraw' && (
         <section className="payout-section">
           <h2>Connect Payout Wallet</h2>
-          <p className="payout-hint">Payments go directly to your connected method (like Ko-fi)</p>
+          <p className="payout-hint">Payments go directly to your preferred method</p>
           <div className="payout-methods">
             {['bank', 'mpesa', 'paypal', 'crypto'].map(m => (
-              <button key={m} className="payout-method" onClick={() => openPayoutForm(m)}>
+              <div key={m} className="payout-method" style={{ cursor: 'default' }}>
                 <span>{m === 'bank' ? '🏦' : m === 'mpesa' ? '📱' : m === 'paypal' ? '💳' : '₿'}</span>
                 <span>{m.charAt(0).toUpperCase() + m.slice(1)}</span>
-                <span className="connect-status">{connectedPayouts[m] ? '✓ Connected' : 'Connect'}</span>
-              </button>
+                {connectedPayouts[m] ? (
+                  <>
+                    <span className="connect-status">✓ Connected</span>
+                    {preferredPayout === m ? (
+                      <span style={{ fontSize: 11, color: 'var(--orange)', marginLeft: 8 }}>Preferred</span>
+                    ) : (
+                      <button
+                        onClick={() => makePreferred(m)}
+                        style={{ marginLeft: 'auto', fontSize: 11, background: 'none', border: 'none', color: 'var(--orange)', cursor: 'pointer' }}
+                      >
+                        Set preferred
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    onClick={() => openPayoutForm(m)}
+                    className="connect-status"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
             ))}
           </div>
           {payoutForm && (
