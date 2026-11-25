@@ -1,6 +1,7 @@
-import { creditBalance, addTransaction, getPreferredPayout } from '@/lib/db';
+import { creditBalance, addTransaction, getPreferredPayout, creditCompany } from '@/lib/db';
 import { sendToWallet } from '@/lib/payout';
 import { verifyWebhook } from '@/lib/webhook';
+import { calculateSplit } from '@/lib/fees';
 
 const CONFIG = {
   secret: process.env.ONERWAY_SECRET || '',
@@ -52,11 +53,18 @@ export async function POST(req) {
     const status = payload.status;
 
     if (email && status === 'S' && amount > 0) {
-      const newBalance = creditBalance(email, amount);
+      const { fee, recipient, feePercent } = calculateSplit(amount);
+
+      creditCompany(fee, { email, transactionId, feePercent });
+
+      const newBalance = creditBalance(email, recipient);
       addTransaction({
         email,
         type: 'deposit',
-        amount,
+        amount: recipient,
+        fee,
+        feePercent,
+        gross: amount,
         currency: payload.orderCurrency || 'USD',
         transactionId,
         status: 'success',
@@ -66,7 +74,7 @@ export async function POST(req) {
       if (preferred) {
         const payoutResult = await sendToWallet({
           email,
-          amount,
+          amount: recipient,
           currency: payload.orderCurrency || 'USD',
           method: preferred.method,
           details: preferred.details,
@@ -76,7 +84,7 @@ export async function POST(req) {
         addTransaction({
           email,
           type: 'payout',
-          amount,
+          amount: recipient,
           currency: payload.orderCurrency || 'USD',
           method: preferred.method,
           status: payoutResult.ok ? 'sent' : 'failed',
@@ -84,9 +92,9 @@ export async function POST(req) {
         });
       }
 
-      console.log(`[Webhook] Verified & credited ${email} +${amount}`);
+      console.log(`[Webhook] Split: fee=${fee} (${feePercent}%), recipient=${recipient}`);
     } else {
-      console.log(`[Webhook] Verified ${transactionId} status=${status} (no credit)`);
+      console.log(`[Webhook] Verified ${transactionId} status=${status}`);
     }
 
     processed.set(transactionId, { status, at: new Date().toISOString() });
