@@ -48,6 +48,22 @@ export default function SupportApp() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Load balance when email changes
+  useEffect(() => {
+    if (email && email.includes('@')) {
+      fetch(`/api/balance?email=${encodeURIComponent(email)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.balance != null) setBalance(data.balance);
+          if (data.transactions?.length) setTransactions(data.transactions.map(t => ({
+            ...t,
+            date: new Date(t.createdAt).toLocaleDateString()
+          })));
+        })
+        .catch(() => {});
+    }
+  }, [email]);
+
   const sym = currencies[currency].symbol;
   const convertedBalance = (balance * currencies[currency].rate).toFixed(2);
   const fee = amount > 0 ? (amount * 0.029 + 0.30).toFixed(2) : null;
