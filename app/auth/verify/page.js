@@ -15,7 +15,8 @@ function VerifyContent() {
       .then(r => r.json())
       .then(data => {
         if (data.ok) {
-          localStorage.setItem('cheersbro_session', data.session);
+          localStorage.setItem('cheersbro_access', data.access);
+          localStorage.setItem('cheersbro_refresh', data.refresh);
           localStorage.setItem('cheersbro_email', data.email);
           setStatus('Signed in! Redirecting...');
           setTimeout(() => router.push('/'), 800);
