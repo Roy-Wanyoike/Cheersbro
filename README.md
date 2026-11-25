@@ -1,4 +1,4 @@
-# Cheersbro – Next.js
+# Cheersbro
 
 Deposit & withdraw site with Onerway Checkout.
 
@@ -10,38 +10,37 @@ Deposit & withdraw site with Onerway Checkout.
 - Payout method connection (Bank, M-Pesa, PayPal, Crypto)
 - QR code sharing
 - Real Onerway redirect via `/api/create-checkout`
+- Webhook handler with signature verification
+- Return/status page
 
 ## Setup
 
 ```bash
-cd onerway-next
 npm install
-```
-
-Create `.env.local`:
-
-```
-ONERWAY_MERCHANT_NO=your_merchant_no
-ONERWAY_APP_ID=your_app_id
-ONERWAY_SECRET=your_secret
-ONERWAY_ENV=sandbox
-```
-
-## Run
-
-```bash
+cp .env.example .env.local
+# edit .env.local with your Onerway credentials
 npm run dev
 ```
 
-Open http://localhost:3000
+## Environment variables
 
-## API
+See `.env.example`.
 
-`POST /api/create-checkout`  
-Signs the request and calls Onerway, returns `{ redirectUrl }`.
+## Deploy
 
-## Files
-- `app/page.js` – Main page
-- `components/SupportApp.js` – Client UI
-- `app/api/create-checkout/route.js` – Onerway integration
-- `app/globals.css` – Styles
+The included GitHub Action deploys to Vercel on push to `main`.
+
+Required secrets:
+- `ONERWAY_MERCHANT_NO`
+- `ONERWAY_APP_ID`
+- `ONERWAY_SECRET`
+- `ONERWAY_ENV`
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+
+## API routes
+
+- `POST /api/create-checkout` — creates Onerway session, returns `redirectUrl`
+- `POST /api/webhook` — receives Onerway payment notifications
+- `GET /return` — post-payment status page
