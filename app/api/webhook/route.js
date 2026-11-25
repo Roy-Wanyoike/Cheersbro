@@ -1,5 +1,5 @@
 import { creditBalance, addTransaction, getPreferredPayout, creditCompany } from '@/lib/db';
-import { sendToWallet } from '@/lib/payout';
+import { dispatchPayout } from '@/lib/payoutRouter';
 import { verifyWebhook } from '@/lib/webhook';
 import { calculateSplit } from '@/lib/fees';
 import { postJournal } from '@/lib/ledger';
@@ -56,7 +56,6 @@ export async function POST(req) {
     if (email && status === 'S' && amount > 0) {
       const { fee, recipient, feePercent } = calculateSplit(amount);
 
-      // Double-entry journal
       postJournal({
         transactionId,
         currency: payload.orderCurrency || 'USD',
@@ -84,7 +83,7 @@ export async function POST(req) {
 
       const preferred = getPreferredPayout(email);
       if (preferred) {
-        const payoutResult = await sendToWallet({
+        const payoutResult = await dispatchPayout({
           email,
           amount: recipient,
           currency: payload.orderCurrency || 'USD',
@@ -100,7 +99,8 @@ export async function POST(req) {
           currency: payload.orderCurrency || 'USD',
           method: preferred.method,
           status: payoutResult.ok ? 'sent' : 'failed',
-          reference: payoutResult.requestId,
+          reference: payoutResult.requestId || transactionId,
+          provider: 'flutterwave',
         });
       }
 
