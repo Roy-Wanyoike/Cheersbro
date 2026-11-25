@@ -1,5 +1,5 @@
-import { createRefreshToken, signAccess } from '../../../../lib/jwt';
-import { verifyMagicToken } from '../../../../lib/auth';
+import { createRefreshToken, signAccess } from '@/lib/jwt';
+import { verifyMagicToken } from '@/lib/auth';
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);

@@ -1,4 +1,4 @@
-import { getUser, updateUser } from '../../../../lib/db';
+import { getUser, updateUser } from '@/lib/db';
 
 import fs from 'fs';
 import path from 'path';

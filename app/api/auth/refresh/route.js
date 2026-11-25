@@ -1,4 +1,4 @@
-import { rotateRefresh } from '../../../../lib/jwt';
+import { rotateRefresh } from '@/lib/jwt';
 
 export async function POST(req) {
   try {

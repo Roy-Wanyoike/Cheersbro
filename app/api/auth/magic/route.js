@@ -1,5 +1,5 @@
-import { createMagicToken } from '../../../../lib/auth';
-import { sendPaymentLink } from '../../../../lib/email';
+import { createMagicToken } from '@/lib/auth';
+import { sendPaymentLink } from '@/lib/email';
 
 export async function POST(req) {
   try {

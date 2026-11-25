@@ -1,4 +1,4 @@
-import { sendPaymentLink } from '../../../../lib/email';
+import { sendPaymentLink } from '@/lib/email';
 
 export async function POST(req) {
   try {

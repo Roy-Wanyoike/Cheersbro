@@ -1,12 +1,11 @@
-import { creditBalance, addTransaction, getPreferredPayout } from '../../../../lib/db';
-import { sendToWallet } from '../../../../lib/payout';
-import { verifyWebhook } from '../../../../lib/webhook';
+import { creditBalance, addTransaction, getPreferredPayout } from '@/lib/db';
+import { sendToWallet } from '@/lib/payout';
+import { verifyWebhook } from '@/lib/webhook';
 
 const CONFIG = {
   secret: process.env.ONERWAY_SECRET || '',
 };
 
-// Idempotency store (use Redis/DB in production)
 const processed = new Map();
 
 export async function POST(req) {
@@ -24,7 +23,6 @@ export async function POST(req) {
       return new Response('Missing transactionId', { status: 400 });
     }
 
-    // Prefer x-signature, fall back to X-Rh-Signature
     const signatureHeader =
       req.headers.get('x-signature') ||
       req.headers.get('x-rh-signature');
@@ -35,16 +33,13 @@ export async function POST(req) {
       return new Response('Invalid signature', { status: 400 });
     }
 
-    // Idempotency
     if (processed.has(transactionId)) {
-      console.log(`[Webhook] Idempotent replay ${transactionId}`);
       return new Response(transactionId, {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },
       });
     }
 
-    // Extract email
     let email = null;
     try {
       const billing = typeof payload.billingInformation === 'string'
@@ -96,7 +91,6 @@ export async function POST(req) {
 
     processed.set(transactionId, { status, at: new Date().toISOString() });
 
-    // Acknowledge with plain-text transactionId
     return new Response(transactionId, {
       status: 200,
       headers: { 'Content-Type': 'text/plain' },

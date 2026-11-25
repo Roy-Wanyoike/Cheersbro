@@ -1,4 +1,4 @@
-import { setPayoutMethod, getPayoutMethods, setPreferredPayout, getPreferredPayout } from '../../../../lib/db';
+import { setPayoutMethod, getPayoutMethods, setPreferredPayout, getPreferredPayout } from '@/lib/db';
 
 export async function POST(req) {
   try {
