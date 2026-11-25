@@ -1,6 +1,5 @@
-import { getUser, updateUser } from '../../../lib/db';
+import { getUser, updateUser } from '../../../../lib/db';
 
-// In-memory + file-backed orders
 import fs from 'fs';
 import path from 'path';
 

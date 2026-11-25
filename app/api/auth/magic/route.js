@@ -1,5 +1,5 @@
-import { createMagicToken } from '../../../lib/auth';
-import { sendPaymentLink } from '../../../lib/email';
+import { createMagicToken } from '../../../../lib/auth';
+import { sendPaymentLink } from '../../../../lib/email';
 
 export async function POST(req) {
   try {
@@ -12,7 +12,6 @@ export async function POST(req) {
     const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const link = `${base}/auth/verify?token=${token}`;
 
-    // Reuse email helper (demo logs to console)
     await sendPaymentLink({
       to: email,
       ref: 'LOGIN',
