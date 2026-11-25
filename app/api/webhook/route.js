@@ -1,4 +1,5 @@
-import { creditBalance, addTransaction, getUser } from '../../../../lib/db';
+import { creditBalance, addTransaction, getPreferredPayout } from '../../../../lib/db';
+import { sendToWallet } from '../../../../lib/payout';
 import crypto from 'crypto';
 
 const CONFIG = {
@@ -68,6 +69,7 @@ export async function POST(req) {
     const status = payload.status; // S = success
 
     if (email && status === 'S' && amount > 0) {
+      // Credit internal balance
       const newBalance = creditBalance(email, amount);
       addTransaction({
         email,
@@ -77,6 +79,30 @@ export async function POST(req) {
         transactionId,
         status: 'success',
       });
+
+      // Direct-to-wallet: if creator has a connected payout method, send funds immediately
+      const preferred = getPreferredPayout(email);
+      if (preferred) {
+        const payoutResult = await sendToWallet({
+          email,
+          amount,
+          currency: payload.orderCurrency || 'USD',
+          method: preferred.method,
+          details: preferred.details,
+          reference: transactionId,
+        });
+        console.log(`[Payout] ${email} → ${preferred.method}:`, payoutResult.ok ? 'sent' : payoutResult.error);
+        addTransaction({
+          email,
+          type: 'payout',
+          amount,
+          currency: payload.orderCurrency || 'USD',
+          method: preferred.method,
+          status: payoutResult.ok ? 'sent' : 'failed',
+          reference: payoutResult.requestId,
+        });
+      }
+
       console.log(`[Webhook] Credited ${email} +${amount}, balance=${newBalance}`);
     } else {
       console.log(`[Webhook] ${transactionId} status=${status} (no credit)`);
