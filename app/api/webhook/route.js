@@ -3,6 +3,7 @@ import { dispatchPayout } from '@/lib/payoutRouter';
 import { verifyWebhook } from '@/lib/webhook';
 import { calculateSplit } from '@/lib/fees';
 import { postJournal } from '@/lib/ledger';
+import { recordCollection, markSettled, reserveForPayout, confirmPayout, releaseReservation } from '@/lib/settlement';
 
 const CONFIG = {
   secret: process.env.ONERWAY_SECRET || '',
@@ -66,9 +67,13 @@ export async function POST(req) {
         ],
       });
 
+      // Settlement: collect then mark available (direct-from-wallet model)
+      recordCollection(amount, { email, transactionId });
+      markSettled(amount, { email, transactionId });
+
       creditCompany(fee, { email, transactionId, feePercent });
 
-      const newBalance = creditBalance(email, recipient);
+      creditBalance(email, recipient);
       addTransaction({
         email,
         type: 'deposit',
@@ -83,25 +88,42 @@ export async function POST(req) {
 
       const preferred = getPreferredPayout(email);
       if (preferred) {
-        const payoutResult = await dispatchPayout({
-          email,
-          amount: recipient,
-          currency: payload.orderCurrency || 'USD',
-          method: preferred.method,
-          details: preferred.details,
-          reference: transactionId,
-        });
-        console.log(`[Payout] ${email} → ${preferred.method}:`, payoutResult.ok ? 'sent' : payoutResult.error);
-        addTransaction({
-          email,
-          type: 'payout',
-          amount: recipient,
-          currency: payload.orderCurrency || 'USD',
-          method: preferred.method,
-          status: payoutResult.ok ? 'sent' : 'failed',
-          reference: payoutResult.requestId || transactionId,
-          provider: 'flutterwave',
-        });
+        const reserved = reserveForPayout(recipient, { email, transactionId });
+        if (!reserved.ok) {
+          console.warn(`[Payout] Insufficient funds for ${email}: available=${reserved.available}`);
+          addTransaction({
+            email,
+            type: 'payout',
+            amount: recipient,
+            status: 'pending_funds',
+            reference: transactionId,
+          });
+        } else {
+          const payoutResult = await dispatchPayout({
+            email,
+            amount: recipient,
+            currency: payload.orderCurrency || 'USD',
+            method: preferred.method,
+            details: preferred.details,
+            reference: transactionId,
+          });
+          if (payoutResult.ok) {
+            confirmPayout(recipient, { email, transactionId });
+          } else {
+            releaseReservation(recipient, { email, transactionId, reason: payoutResult.error });
+          }
+          console.log(`[Payout] ${email} → ${preferred.method}:`, payoutResult.ok ? 'sent' : payoutResult.error);
+          addTransaction({
+            email,
+            type: 'payout',
+            amount: recipient,
+            currency: payload.orderCurrency || 'USD',
+            method: preferred.method,
+            status: payoutResult.ok ? 'sent' : 'failed',
+            reference: payoutResult.id || transactionId,
+            provider: 'flutterwave',
+          });
+        }
       }
 
       console.log(`[Webhook] Split: fee=${fee} (${feePercent}%), recipient=${recipient}`);
