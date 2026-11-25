@@ -41,7 +41,12 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <h2>Recent fees</h2>
+      <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
+        <Link href="/api/admin/settlement" style={{ fontSize: 13, color: 'var(--orange)' }}>Settlement →</Link>
+        <Link href="/api/admin/ledger" style={{ fontSize: 13, color: 'var(--orange)' }}>Ledger →</Link>
+      </div>
+
+      <h2 style={{ marginTop: 24 }}>Recent fees</h2>
       <div className="transaction-list">
         {(data.recent || []).map((e, i) => (
           <div key={i} className="tx-item">
