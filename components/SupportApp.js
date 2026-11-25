@@ -43,6 +43,7 @@ export default function SupportApp() {
   const [connectedPayouts, setConnectedPayouts] = useState({});
   const [payoutForm, setPayoutForm] = useState(null);
   const [payoutData, setPayoutData] = useState({});
+  const [shareLink, setShareLink] = useState('');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -99,7 +100,7 @@ export default function SupportApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount, currency, email, firstName, lastName, country, message, mode,
-          returnUrl: window.location.origin + '/return',
+          returnUrl: window.location.origin + '/status',
           notifyUrl: window.location.origin + '/api/webhook',
         }),
       });
@@ -128,9 +129,26 @@ export default function SupportApp() {
     setQrModal(true);
   };
 
-  const share = () => {
-    if (navigator.share) navigator.share({ title: 'Support Me', url: window.location.href });
-    else { navigator.clipboard.writeText(window.location.href); showStatus('Link copied!', 'success'); }
+  const createShareLink = async () => {
+    if (amount <= 0 || !email.includes('@')) {
+      return showStatus('Select amount and enter email first', 'error');
+    }
+    try {
+      const res = await fetch('/api/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, currency, email, firstName, lastName, message, mode }),
+      });
+      const data = await res.json();
+      if (data.ref) {
+        const link = `${window.location.origin}/pay?ref=${data.ref}`;
+        setShareLink(link);
+        navigator.clipboard.writeText(link).catch(() => {});
+        showStatus('Payment link created and copied!', 'success');
+      }
+    } catch {
+      showStatus('Could not create link', 'error');
+    }
   };
 
   const payoutFields = {
@@ -150,7 +168,6 @@ export default function SupportApp() {
     for (const f of fields) {
       if (!payoutData[f.id]) return showStatus(f.label + ' required', 'error');
     }
-    // Save to backend so webhook can send funds directly
     try {
       await fetch('/api/payout-method', {
         method: 'POST',
@@ -331,9 +348,18 @@ export default function SupportApp() {
       </section>
 
       <div className="share-section">
-        <button className="share-btn" onClick={share}>📤 Share</button>
+        <button className="share-btn" onClick={createShareLink}>🔗 Create payment link</button>
         <button className="share-btn" onClick={openQR}>📱 QR Code</button>
       </div>
+      {shareLink && (
+        <div style={{ marginTop: 12, padding: 12, background: 'var(--cream)', borderRadius: 12, fontSize: 13 }}>
+          <strong>Share this link:</strong>
+          <div style={{ wordBreak: 'break-all', marginTop: 4 }}>
+            <a href={shareLink} target="_blank" rel="noopener">{shareLink}</a>
+          </div>
+          <p style={{ color: 'var(--muted)', marginTop: 6, fontSize: 12 }}>Stays in the browser — anyone with the link can pay.</p>
+        </div>
+      )}
 
       {qrModal && (
         <div className="modal" onClick={() => setQrModal(false)}>
