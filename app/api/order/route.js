@@ -3,7 +3,10 @@ import { getUser, updateUser } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
 
-const ORDERS_FILE = path.join(process.cwd(), 'data', 'orders.json');
+const ORDERS_FILE = path.join(
+  process.env.VERCEL ? '/tmp/cheersbro-data' : path.join(process.cwd(), 'data'),
+  'orders.json'
+);
 
 function loadOrders() {
   if (!fs.existsSync(ORDERS_FILE)) return {};
