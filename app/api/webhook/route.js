@@ -2,6 +2,7 @@ import { creditBalance, addTransaction, getPreferredPayout, creditCompany } from
 import { sendToWallet } from '@/lib/payout';
 import { verifyWebhook } from '@/lib/webhook';
 import { calculateSplit } from '@/lib/fees';
+import { postJournal } from '@/lib/ledger';
 
 const CONFIG = {
   secret: process.env.ONERWAY_SECRET || '',
@@ -54,6 +55,17 @@ export async function POST(req) {
 
     if (email && status === 'S' && amount > 0) {
       const { fee, recipient, feePercent } = calculateSplit(amount);
+
+      // Double-entry journal
+      postJournal({
+        transactionId,
+        currency: payload.orderCurrency || 'USD',
+        lines: [
+          { accountCode: '1000', debit: amount, memo: 'Deposit received' },
+          { accountCode: '2000', credit: recipient, email, memo: 'User liability' },
+          { accountCode: '4000', credit: fee, memo: 'Service fee revenue' },
+        ],
+      });
 
       creditCompany(fee, { email, transactionId, feePercent });
 
